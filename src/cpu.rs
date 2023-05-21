@@ -66,23 +66,9 @@ impl CPU {
             self.carry = 0;
         }
 
-        if overflowed1 || overflowed2 {
-            self.overflow = true;
-        } else {
-            self.overflow = false;
-        }
-
-        if self.a == 0 {
-            self.zero = true;
-        } else {
-            self.zero = false;
-        }
-
-        if (self.a >> 7) == 1 {
-            self.negative = true;
-        } else {
-            self.negative = false;
-        }
+        self.overflow = overflowed1 || overflowed2;
+        self.zero = self.a == 0;
+        self.negative = (self.a >> 7) == 1;
     }
 
     /// ADC $44
@@ -134,18 +120,8 @@ impl CPU {
     /// AND #$44
     fn and29(&mut self, operand: u8) {
         self.a &= operand;
-
-        if self.a == 0 {
-            self.zero = true;
-        } else {
-            self.zero = false;
-        }
-
-        if self.a >> 7 == 1 {
-            self.negative = true;
-        } else {
-            self.negative = false;
-        }
+        self.zero = self.a == 0;
+        self.negative = self.a >> 7 == 1;
     }
 
     /// AND $44
@@ -193,6 +169,103 @@ impl CPU {
         let operand = self.ram[(addr + self.y as u16) as usize];
         self.and29(operand);
     }
+
+    /// ASL A
+    fn asl0a(&mut self) {
+        self.carry = (self.a & 0b1000_0000) >> 7;
+        self.a <<= 1;
+        self.a &= 0b1111_1110;
+
+        self.zero = self.a == 0;
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// ASL $4400
+    fn asl0e(&mut self, operand: u16) {
+        let operand = operand as usize;
+        self.carry = (self.ram[operand] & 0b1000_0000) >> 7;
+        self.ram[operand] <<= 1;
+        self.ram[operand] &= 0b1111_1110;
+
+        self.zero = self.ram[operand] == 0;
+        self.negative = (self.ram[operand] & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// ASL $44
+    fn asl06(&mut self, operand: u8) {
+        self.asl0e(operand as u16);
+    }
+
+    /// ASL $44,X
+    fn asl16(&mut self, operand: u8) {
+        self.asl06(operand + self.x);
+    }
+
+    /// ASL $4400, X
+    fn asl1e(&mut self, operand: u16) {
+        self.asl0e(operand + self.x as u16);
+    }
+
+    /// BCC $44
+    fn bcc90(&mut self, operand: u8) {
+        if self.carry == 0 {
+            self.pc += operand as u16;
+        }
+    }
+
+    /// BCS $44
+    fn bcsb0(&mut self, operand: u8) {
+        if self.carry == 1 {
+            self.pc += operand as u16;
+        }
+    }
+
+    /// BEQ $44
+    fn beqf0(&mut self, operand: u8) {
+        if self.zero {
+            self.pc += operand as u16;
+        }
+    }
+
+    /// helper function for BIT instructions
+    fn bit_helper(&mut self, operand: u16) {
+        let value = self.ram[operand as usize] & self.a;
+
+        self.zero = value == 0;
+        self.negative = value & 0b1000_0000 == 0b1000_0000;
+        self.overflow = value & 0b0100_0000 == 0b0100_0000;
+    }
+
+    /// BIT $44
+    fn bit24(&mut self, operand: u8) {
+        self.bit_helper(operand as u16);
+    }
+
+    /// BIT $4400
+    fn bit2c(&mut self, operand: u16) {
+        self.bit_helper(operand);
+    }
+
+    /// BMI $44
+    fn bmi30(&mut self, operand: u8) {
+        if self.negative {
+            self.pc += operand as u16;
+        }
+    }
+
+    /// BNE $44
+    fn bned0(&mut self, operand: u8) {
+        if !self.zero {
+            self.pc += operand as u16;
+        }
+    }
+
+    /// BPL $44
+    fn bpl10(&mut self, operand: u8) {
+        if !self.negative {
+            self.pc += operand as u16
+        }
+    }
 }
 
 #[cfg(test)]
@@ -200,7 +273,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_adc_opcodes() {
+    fn adc_opcodes() {
         let mut cpu = CPU::default();
 
         cpu.a = 255;
@@ -214,7 +287,7 @@ mod tests {
         cpu.adc69(1);
         assert!(cpu.overflow == true);
 
-        // the following opcodes all use addc69 underneath so there's no need to test flags again
+        // the following opcodes all use adc69 underneath so there's no need to test flags again
         cpu.ram[0x44] = 29;
         cpu.a = 3;
         cpu.adc65(0x44);
@@ -257,12 +330,11 @@ mod tests {
         cpu.y = 3;
         cpu.ram[0x01cd] = 111;
         cpu.adc71(0xaa);
-        println!("{}", cpu.a);
         assert!(cpu.a == 111);
     }
 
     #[test]
-    fn test_and_opcodes() {
+    fn and_opcodes() {
         let mut cpu = CPU::default();
         cpu.a = 0x0f;
         cpu.and29(0xf0);
@@ -275,7 +347,7 @@ mod tests {
         cpu.and29(0xff);
         assert!(cpu.negative == true);
 
-        // the following opcodes all use addc69 underneath so there's no need to test flags again
+        // the following opcodes all use and29 underneath so there's no need to test flags again
         cpu.ram[0xaa] = 0xf0;
         cpu.a = 0xea;
         cpu.and25(0xaa);
@@ -319,5 +391,105 @@ mod tests {
         cpu.y = 2;
         cpu.and31(10);
         assert!(cpu.a == 0xd);
+    }
+
+    #[test]
+    fn asl_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 0b1011_1111;
+        cpu.asl0a();
+        assert!(cpu.a == 0b0111_1110);
+        assert!(cpu.carry == 1);
+        assert!(cpu.zero == false);
+        assert!(cpu.negative == false);
+        cpu.a = 0b1000_0000;
+        cpu.asl0a();
+        assert!(cpu.zero == true);
+        cpu.a = 0b0100_0000;
+        cpu.asl0a();
+        assert!(cpu.negative == true);
+
+        // has the same logic as asl0a so flag testing is skipped
+        // also skips testing asl0e as underneath asl06 uses it to limit to 8 bits
+        cpu.ram[150] = 0b1011_1111;
+        cpu.asl06(150);
+        assert!(cpu.ram[150] == 0b0111_1110);
+        // also skips the other intructions because they all rely on the opcode above
+    }
+
+    #[test]
+    fn branch_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.carry = 0;
+        cpu.bcc90(200);
+        assert!(cpu.pc == 200);
+        cpu.carry = 1;
+        cpu.bcc90(50);
+        assert!(cpu.pc != 250);
+
+        cpu.pc = 0;
+        cpu.carry = 1;
+        cpu.bcsb0(200);
+        assert!(cpu.pc == 200);
+        cpu.carry = 0;
+        cpu.bcsb0(50);
+        assert!(cpu.pc != 250);
+
+        cpu.pc = 0;
+        cpu.zero = true;
+        cpu.beqf0(100);
+        assert!(cpu.pc == 100);
+        cpu.zero = false;
+        cpu.beqf0(100);
+        assert!(cpu.pc != 200);
+
+        cpu.pc = 0;
+        cpu.negative = true;
+        cpu.bmi30(100);
+        assert!(cpu.pc == 100);
+        cpu.negative = false;
+        cpu.bmi30(100);
+        assert!(cpu.pc != 200);
+
+        cpu.pc = 0;
+        cpu.zero = false;
+        cpu.bned0(100);
+        assert!(cpu.pc == 100);
+        cpu.zero = true;
+        cpu.bned0(100);
+        assert!(cpu.pc != 200);
+
+    // BPL $44
+        cpu.pc = 0;
+        cpu.negative = false;
+        cpu.bpl10(100);
+        assert!(cpu.pc == 100);
+        cpu.negative = true;
+        cpu.bpl10(100);
+        assert!(cpu.pc != 200);
+    }
+
+    #[test]
+    fn bit_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 0b1111_0000;
+        cpu.ram[55] = 0b1100_1111;
+        cpu.bit24(55);
+        assert!(cpu.negative == true);
+        assert!(cpu.overflow == true);
+        cpu.a = 0b1111_0000;
+        cpu.ram[55] = 0b0011_1111;
+        cpu.bit24(55);
+        assert!(cpu.negative == false);
+        assert!(cpu.overflow == false);
+        assert!(cpu.zero == false);
+        cpu.a = 0b0000_1111;
+        cpu.ram[55] = 0b1111_0000;
+        cpu.bit24(55);
+        assert!(cpu.zero == true);
+        // no need to test bit2c, it has the same implementation
     }
 }
