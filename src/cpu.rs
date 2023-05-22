@@ -1,4 +1,6 @@
+// TODO write interrupt instruction opcodes
 use std::mem;
+use crate::mmap;
 
 pub struct CPU {
     ram: [u8; 2048],
@@ -20,6 +22,7 @@ pub struct CPU {
     decimal: bool,
     interrupt_disable: bool,
     zero: bool,
+    /// break command
     b: bool,
 }
 
@@ -461,7 +464,7 @@ mod tests {
         cpu.bned0(100);
         assert!(cpu.pc != 200);
 
-    // BPL $44
+        // BPL $44
         cpu.pc = 0;
         cpu.negative = false;
         cpu.bpl10(100);
