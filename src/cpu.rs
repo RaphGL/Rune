@@ -1,13 +1,12 @@
-// TODO write interrupt instruction opcodes
-use std::mem;
 use crate::mmap;
+use std::mem;
 
 pub struct CPU {
     ram: [u8; 2048],
     /// program counter
     pc: u16,
     /// stack pointer
-    sp: [u8; 256],
+    sp: u8,
     /// accumulator
     a: u8,
     /// register x
@@ -31,7 +30,7 @@ impl Default for CPU {
         CPU {
             ram: [0; 2048],
             pc: 0,
-            sp: [0; 256],
+            sp: 0xff,
             a: 0,
             x: 0,
             y: 0,
@@ -47,9 +46,69 @@ impl Default for CPU {
 }
 
 impl CPU {
-    pub fn load_roam(filename: &str) {}
+    pub fn load_rom(filename: &str) {}
 
     pub fn cycle(&mut self) {}
+
+    /// encodes the status flags into a single byte
+    fn get_status(&self) -> u8 {
+        let mut status_code: u8 = 0;
+        if self.negative {
+            status_code |= 0b1000_0000;
+        }
+
+        if self.overflow {
+            status_code |= 0b0100_0000;
+        }
+
+        if self.b {
+            status_code |= 0b0011_0000;
+        } else {
+            status_code |= 0b0010_0000;
+        }
+
+        if self.decimal {
+            status_code |= 0b0000_1000;
+        }
+
+        if self.interrupt_disable {
+            status_code |= 0b0000_0100;
+        }
+
+        if self.zero {
+            status_code |= 0b0000_0010;
+        }
+
+        if self.carry == 1 {
+            status_code |= 0b0000_0001;
+        }
+
+        status_code
+    }
+
+    /// decodes status flag byte into their corresponding struct fields
+    fn set_status(&mut self, status_byte: u8) {
+        self.negative = status_byte & 0b1000_0000 == 0b1000_0000;
+        self.overflow = status_byte & 0b0100_0000 == 0b0100_0000;
+        self.b = status_byte & 0b0011_0000 == 0b0011_0000;
+        self.decimal = status_byte & 0b0000_1000 == 0b0000_1000;
+        self.interrupt_disable = status_byte & 0b0000_0100 == 0b0000_0100;
+        self.zero = status_byte & 0b0000_0010 == 0b0000_0010;
+        self.carry = status_byte & 0b0000_0001;
+    }
+
+    fn push_to_stack(&mut self, val: u8) {
+        self.ram[self.sp as usize] = val;
+        self.sp -= 1;
+    }
+
+    fn pop_from_stack(&mut self) -> u8 {
+        let addr = self.sp;
+        self.sp += 1;
+        self.ram[addr as usize]
+    }
+
+    // --- INSTRUCTIONS ---
 
     /// ADC #$44
     fn adc69(&mut self, operand: u8) {
@@ -269,6 +328,55 @@ impl CPU {
             self.pc += operand as u16
         }
     }
+
+    /// BRK
+    fn brk00(&mut self) {
+        let pc1 = (self.pc & 0x00FF) as u8;
+        let pc2 = ((self.pc & 0xFF00) >> 8) as u8;
+        self.push_to_stack(pc1);
+        self.push_to_stack(pc2);
+        self.push_to_stack(self.get_status());
+
+        let irq: u16 = self.ram[mmap::cpu::irq_brk::START] as u16
+            | (self.ram[mmap::cpu::irq_brk::END] as u16) << 8;
+
+        self.pc = irq;
+        self.b = true;
+    }
+
+    /// BVC $44
+    fn bvc50(&mut self, operand: u8) {
+        if !self.overflow {
+            self.pc += operand as u16;
+        }
+    }
+
+    /// BVS $44
+    fn bvs70(&mut self, operand: u8) {
+        if self.overflow {
+            self.pc += operand as u16;
+        }
+    }
+
+    /// CLC
+    fn clc18(&mut self) {
+        self.carry = 0;
+    }
+
+    /// CLD
+    fn cldd8(&mut self) {
+        self.decimal = false;
+    }
+
+    /// CLI
+    fn cli58(&mut self) {
+        self.interrupt_disable = false;
+    }
+
+    /// CLV
+    fn clvb8(&mut self) {
+        self.overflow = false;
+    }
 }
 
 #[cfg(test)]
@@ -472,6 +580,16 @@ mod tests {
         cpu.negative = true;
         cpu.bpl10(100);
         assert!(cpu.pc != 200);
+
+        cpu.pc = 0;
+        cpu.overflow = false;
+        cpu.bvc50(25);
+        assert!(cpu.pc == 25);
+
+        cpu.pc = 0;
+        cpu.overflow = true;
+        cpu.bvs70(100);
+        assert!(cpu.pc == 100);
     }
 
     #[test]
@@ -494,5 +612,35 @@ mod tests {
         cpu.bit24(55);
         assert!(cpu.zero == true);
         // no need to test bit2c, it has the same implementation
+    }
+
+    #[test]
+    fn brk_opcode() {
+        // TODO uncomment once PPU memory is implemented
+        // let mut cpu = CPU::default();
+        // cpu.ram[mmap::cpu::irq_brk::START] = 0xff;
+        // cpu.ram[mmap::cpu::irq_brk::END] = 0x02;
+        // cpu.brk00();
+        // assert!(cpu.pc == 0xea);
+    }
+
+    #[test]
+    fn clear_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.carry = 1;
+        cpu.clc18();
+        assert!(cpu.carry == 0);
+
+        cpu.decimal = true;
+        cpu.cldd8();
+        assert!(cpu.decimal == false);
+
+        cpu.interrupt_disable = true;
+        cpu.cli58();
+        assert!(cpu.interrupt_disable == false);
+
+        cpu.overflow = true;
+        cpu.clvb8();
+        assert!(cpu.overflow == false);
     }
 }

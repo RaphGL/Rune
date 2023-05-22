@@ -1,46 +1,46 @@
-mod ram {
-    const START: usize = 0x0;
-    const END: usize = 0x07FF;
+pub mod ram {
+    pub const START: usize = 0x0;
+    pub const END: usize = 0x07FF;
 
-    mod zero_page {
-        const START: usize = 0x0;
-        const END: usize = 0x00FF;
+    pub mod zero_page {
+        pub const START: usize = 0x0;
+        pub const END: usize = 0x00FF;
     }
 
-    mod stack {
-        const START: usize = 0x0100;
-        const END: usize = 0x01FF;
-    }
-}
-
-mod cpu {
-    mod nmi {
-        const START: usize = 0xFFFA;
-        const END: usize = 0xFFFB;
-    }
-
-    mod reset {
-        const START: usize = 0xFFFC;
-        const END: usize = 0xFFFD;
-    }
-
-    mod irq_brk {
-        const START: usize = 0xFFFE;
-        const END: usize = 0xFFFF;
+    pub mod stack {
+        pub const START: usize = 0x0100;
+        pub const END: usize = 0x01FF;
     }
 }
 
-mod ppu {
-    const START: usize = 0x2000;
-    const END: usize = 0x2007;
+pub mod cpu {
+    pub mod nmi {
+        pub const START: usize = 0xFFFA;
+        pub const END: usize = 0xFFFB;
+    }
+
+    pub mod reset {
+        pub const START: usize = 0xFFFC;
+        pub const END: usize = 0xFFFD;
+    }
+
+    pub mod irq_brk {
+        pub const START: usize = 0xFFFE;
+        pub const END: usize = 0xFFFF;
+    }
 }
 
-mod apu_io_registers {
-    const START: usize = 0x4000;
-    const END: usize = 0x4017;
+pub mod ppu {
+    pub const START: usize = 0x2000;
+    pub const END: usize = 0x2007;
 }
 
-mod cartrige {
-    const START: usize = 0x4020;
-    const END: usize = 0xFFFF;
+pub mod apu_io_registers {
+    pub const START: usize = 0x4000;
+    pub const END: usize = 0x4017;
+}
+
+pub mod cartrige {
+    pub const START: usize = 0x4020;
+    pub const END: usize = 0xFFFF;
 }
