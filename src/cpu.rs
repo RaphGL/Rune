@@ -375,7 +375,7 @@ impl CPU {
 
     fn cmp_helper(&mut self, operand: u16) {
         let acc = self.a as u16;
-        let res = acc - operand;
+        let res = acc.wrapping_sub(operand);
         if acc >= operand {
             self.carry = 1;
         } else {
@@ -432,6 +432,94 @@ impl CPU {
         let operand = operand as usize;
         let operand: u16 = self.ram[operand] as u16 | ((self.ram[operand + 1] as u16) << 8);
         self.cmp_helper(operand + self.y as u16);
+    }
+
+    /// CPX #$44
+    fn cpxe0(&mut self, operand: u8) {
+        self.carry = if self.x >= operand { 1 } else { 0 };
+        self.zero = self.x == operand;
+        let res = self.x.wrapping_sub(operand);
+        self.negative = (res & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// CPX $44
+    fn cpxe4(&mut self, operand: u8) {
+        self.cpxe0(self.ram[operand as usize]);
+    }
+
+    /// CPX $4400
+    fn cpxec(&mut self, operand: u16) {
+        self.cpxe0(self.ram[operand as usize]);
+    }
+
+    /// CPY #$44
+    fn cpyc0(&mut self, operand: u8) {
+        self.carry = if self.y >= operand { 1 } else { 0 };
+        self.zero = self.y == operand;
+        let res = self.y.wrapping_sub(operand);
+        self.negative = (res & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// CPY $44
+    fn cpyc4(&mut self, operand: u8) {
+        self.cpyc0(self.ram[operand as usize]);
+    }
+
+    /// CPY $4400
+    fn cpycc(&mut self, operand: u16) {
+        self.cpyc0(self.ram[operand as usize]);
+    }
+
+    /// DEC $44
+    fn decc6(&mut self, operand: u8) {
+        self.ram[operand as usize] -= 1;
+
+        let res = self.ram[operand as usize];
+        if res == 0 {
+            self.zero = true;
+        } else {
+            self.zero = false;
+        }
+
+        self.negative = (res & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// DEC $44,X
+    fn decd6(&mut self, operand: u8) {
+        self.decc6(operand + self.x);
+    }
+
+    /// DEC $4400
+    fn decce(&mut self, operand: u16) {
+        self.ram[operand as usize] -= 1;
+
+        let res = self.ram[operand as usize];
+        if res == 0 {
+            self.zero = true;
+        } else {
+            self.zero = false;
+        }
+
+        self.negative = (res & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// DEC $4400,X
+    fn decde(&mut self, operand: u16) {
+        self.decce(operand + self.x as u16);
+    }
+
+    /// DEX
+    fn dexca(&mut self) {
+        self.x -= 1;
+        self.zero = self.x == 0;
+        self.negative = (self.x & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// DEY
+    fn dey88(&mut self) {
+        self.y -= 1;
+        self.zero = self.y == 0;
+        self.negative = (self.y & 0b1000_0000) == 0b1000_0000;
     }
 }
 
@@ -747,11 +835,77 @@ mod tests {
         cpu.x = 1;
         cpu.cmpc1(79);
 
+        // CMP ($44),Y
         cpu.a = 0xfe;
         cpu.ram[240] = 0xfe;
         cpu.ram[241] = 0x01;
         cpu.ram[0x1ff] = 0xfe;
         cpu.y = 1;
-        cpu.cmpd9(240);
+        cpu.cmpd1(240);
+    }
+
+    #[test]
+    fn cpx_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.x = 0xea;
+        cpu.cpxe0(0xea);
+        assert!(cpu.zero == true);
+
+        cpu.x = 0xea;
+        cpu.ram[200] = 0xea;
+        cpu.cpxe4(200);
+        assert!(cpu.zero == true);
+
+        cpu.x = 0xea;
+        cpu.ram[2023] = 0xea;
+        cpu.cpxec(2023);
+        assert!(cpu.zero == true);
+    }
+
+    #[test]
+    fn cpy_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.y = 0xea;
+        cpu.cpyc0(0xea);
+        assert!(cpu.zero == true);
+
+        cpu.y = 0xea;
+        cpu.ram[200] = 0xea;
+        cpu.cpyc4(200);
+        assert!(cpu.zero == true);
+
+        cpu.y = 0xea;
+        cpu.ram[2023] = 0xea;
+        cpu.cpycc(2023);
+        assert!(cpu.zero == true);
+    }
+
+    #[test]
+    fn dec_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.ram[0x80] = 2;
+        cpu.decc6(0x80);
+        assert!(cpu.ram[0x80] == 1);
+
+        cpu.x = 1;
+        cpu.ram[0x81] = 2;
+        cpu.decd6(0x80);
+        assert!(cpu.ram[0x81] == 1);
+
+        cpu.ram[1400] = 5;
+        cpu.decce(1400);
+        assert!(cpu.ram[1400] == 4);
+
+        cpu.ram[1401] = 5;
+        cpu.decde(1400);
+        assert!(cpu.ram[1401] == 4);
+
+        cpu.x = 1;
+        cpu.dexca();
+        assert!(cpu.x == 0);
+
+        cpu.y = 2;
+        cpu.dey88();
+        assert!(cpu.y == 1);
     }
 }
