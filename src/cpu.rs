@@ -122,12 +122,7 @@ impl CPU {
 
         self.a = res;
 
-        if carried1 || carried2 {
-            self.carry = 1;
-        } else {
-            self.carry = 0;
-        }
-
+        self.carry = if carried1 || carried2 { 1 } else { 0 };
         self.overflow = overflowed1 || overflowed2;
         self.zero = self.a == 0;
         self.negative = (self.a >> 7) == 1;
@@ -226,8 +221,8 @@ impl CPU {
 
     /// AND ($44),Y
     fn and31(&mut self, operand: u8) {
-        let addr: u16 =
-            self.ram[operand as usize] as u16 | (self.ram[(operand + 1) as usize] as u16) << 8;
+        let operand = operand as usize;
+        let addr: u16 = self.ram[operand] as u16 | (self.ram[operand + 1] as u16) << 8;
         let operand = self.ram[(addr + self.y as u16) as usize];
         self.and29(operand);
     }
@@ -376,6 +371,67 @@ impl CPU {
     /// CLV
     fn clvb8(&mut self) {
         self.overflow = false;
+    }
+
+    fn cmp_helper(&mut self, operand: u16) {
+        let acc = self.a as u16;
+        let res = acc - operand;
+        if acc >= operand {
+            self.carry = 1;
+        } else {
+            self.carry = 0;
+        }
+
+        self.zero = acc == operand;
+        self.negative = (res & 0b1000_0000) == 0b1000_0000;
+        self.carry = if acc >= operand { 1 } else { 0 };
+    }
+
+    /// CMP #$44
+    fn cmpc9(&mut self, operand: u8) {
+        self.cmp_helper(operand as u16);
+    }
+
+    /// CMP $44
+    fn cmpc5(&mut self, operand: u8) {
+        self.cmpc9(self.ram[operand as usize]);
+    }
+
+    /// CMP $44,X
+    fn cmpd5(&mut self, operand: u8) {
+        let operand = self.ram[(operand + self.x) as usize];
+        self.cmpc9(operand);
+    }
+
+    /// CMP $4400
+    fn cmpcd(&mut self, operand: u16) {
+        self.cmpc9(self.ram[operand as usize]);
+    }
+
+    /// CMP $4400,X
+    fn cmpdd(&mut self, operand: u16) {
+        let operand = self.ram[(operand + self.x as u16) as usize];
+        self.cmpc9(operand);
+    }
+
+    /// CMP $4400,Y
+    fn cmpd9(&mut self, operand: u16) {
+        let operand = self.ram[(operand + self.y as u16) as usize];
+        self.cmpc9(operand);
+    }
+
+    /// CMP ($44,X)
+    fn cmpc1(&mut self, operand: u8) {
+        let operand = (operand + self.x) as usize;
+        let operand: u16 = self.ram[operand] as u16 | ((self.ram[operand + 1] as u16) << 8);
+        self.cmp_helper(operand);
+    }
+
+    /// CMP ($44),Y
+    fn cmpd1(&mut self, operand: u8) {
+        let operand = operand as usize;
+        let operand: u16 = self.ram[operand] as u16 | ((self.ram[operand + 1] as u16) << 8);
+        self.cmp_helper(operand + self.y as u16);
     }
 }
 
@@ -642,5 +698,60 @@ mod tests {
         cpu.overflow = true;
         cpu.clvb8();
         assert!(cpu.overflow == false);
+    }
+
+    #[test]
+    fn cmp_opcodes() {
+        let mut cpu = CPU::default();
+        // TODO
+        cpu.a = 0xfe;
+        cpu.cmpc9(0xfe);
+        assert!(cpu.zero == true);
+        cpu.a = 0xfe;
+        cpu.cmpc9(0x10);
+        assert!(cpu.carry == 1);
+        assert!(cpu.negative == true);
+
+        cpu.a = 0xfe;
+        cpu.ram[0x80] = 0xfe;
+        cpu.cmpc5(0x80);
+        assert!(cpu.zero == true);
+
+        cpu.a = 0xfe;
+        cpu.ram[0x81] = 0xfe;
+        cpu.x = 1;
+        cpu.cmpd5(0x80);
+        assert!(cpu.zero == true);
+
+        cpu.a = 0xfe;
+        cpu.ram[0x80] = 0xfe;
+        cpu.cmpcd(0x80);
+        assert!(cpu.zero == true);
+
+        cpu.a = 0xfe;
+        cpu.ram[0x701] = 0xfe;
+        cpu.x = 1;
+        cpu.cmpdd(0x700);
+        assert!(cpu.zero == true);
+
+        cpu.a = 0xfe;
+        cpu.ram[0x701] = 0xfe;
+        cpu.y = 1;
+        cpu.cmpd9(0x700);
+        assert!(cpu.zero == true);
+
+        cpu.a = 0xfe;
+        cpu.ram[240] = 0xfe;
+        cpu.ram[241] = 0x0;
+        cpu.ram[80] = 240;
+        cpu.x = 1;
+        cpu.cmpc1(79);
+
+        cpu.a = 0xfe;
+        cpu.ram[240] = 0xfe;
+        cpu.ram[241] = 0x01;
+        cpu.ram[0x1ff] = 0xfe;
+        cpu.y = 1;
+        cpu.cmpd9(240);
     }
 }
