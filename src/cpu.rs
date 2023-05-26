@@ -609,9 +609,27 @@ impl CPU {
 
     /// JMP ($5597)
     fn jmp6c(&mut self, operand: u16) {
-        let addr1: u16 = (self.ram[(operand.wrapping_add(1)) as usize] as u16) << 8;
         let addr2: u16 = self.ram[operand as usize] as u16;
+
+        // introducing paging bug
+        let operand = if operand & 0x00FF == 0x00FF {
+            operand & 0xFF00
+        } else {
+            operand
+        };
+
+        let addr1: u16 = (self.ram[(operand.wrapping_add(1)) as usize] as u16) << 8;
         self.pc = addr1 | addr2;
+    }
+
+    /// JSR $5597
+    fn jsr20(&mut self, operand: u16) {
+        self.pc -= 1;
+        let lsb = self.pc & 0x00FF;
+        let msb = (self.pc & 0xFF00) >> 8;
+        self.push_to_stack(msb as u8);
+        self.push_to_stack(lsb as u8);
+        self.pc = operand;
     }
 }
 
@@ -1052,5 +1070,15 @@ mod tests {
         cpu.ram[701] = 0x0a;
         cpu.jmp6c(700);
         assert!(cpu.pc == 0x0aff);
+
+        cpu.ram[0x1ff] = 0xff;
+        cpu.ram[0x200] = 0x0a;
+        cpu.ram[0x100] = 0x01;
+        cpu.jmp6c(0x1ff);
+        assert!(cpu.pc != 0x0aff);
+        assert!(cpu.pc != 0x01ff);
+
+        cpu.jsr20(2300);
+        assert!(cpu.pc == 2300);
     }
 }
