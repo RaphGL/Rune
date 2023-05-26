@@ -97,6 +97,12 @@ impl CPU {
         self.carry = status_byte & 0b0000_0001;
     }
 
+    fn get_indirect_addr(&mut self, operand: u8) -> u16 {
+        let addr1: u16 = (self.ram[(operand.wrapping_add(1)) as usize] as u16) << 8;
+        let addr2: u16 = self.ram[operand as usize] as u16;
+        addr1 | addr2
+    }
+
     fn push_to_stack(&mut self, val: u8) {
         self.ram[self.sp as usize] = val;
         self.sp -= 1;
@@ -104,7 +110,7 @@ impl CPU {
 
     fn pop_from_stack(&mut self) -> u8 {
         let addr = self.sp;
-        self.sp += 1;
+        self.sp = self.sp.wrapping_add(1);
         self.ram[addr as usize]
     }
 
@@ -136,7 +142,7 @@ impl CPU {
 
     /// ADC $44, X
     fn adc75(&mut self, operand: u8) {
-        let operand = self.ram[(operand + self.x) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.x)) as usize];
         self.adc69(operand);
     }
 
@@ -148,29 +154,26 @@ impl CPU {
 
     /// ADC $4400, X
     fn adc7d(&mut self, operand: u16) {
-        let operand = self.ram[(operand + self.x as u16) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.x as u16)) as usize];
         self.adc69(operand);
     }
 
     /// ADC $4400,Y
     fn adc79(&mut self, operand: u16) {
-        let operand = self.ram[(operand + self.y as u16) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.y as u16)) as usize];
         self.adc69(operand);
     }
 
     /// ADC ($44,X)
     fn adc61(&mut self, operand: u8) {
-        let addr: u16 = self.ram[(operand + self.x) as usize] as u16
-            | (self.ram[(operand + self.x + 1) as usize] as u16) << 8;
-        let operand = self.ram[addr as usize];
-        self.adc69(operand);
+        let addr = self.get_indirect_addr(operand.wrapping_add(self.x));
+        self.adc69(self.ram[addr as usize]);
     }
 
     /// ADC ($44),Y
     fn adc71(&mut self, operand: u8) {
-        let addr: u16 =
-            self.ram[(operand) as usize] as u16 | (self.ram[(operand + 1) as usize] as u16) << 8;
-        let operand = self.ram[(addr + self.y as u16) as usize];
+        let addr = self.get_indirect_addr(operand);
+        let operand = self.ram[(addr.wrapping_add(self.y as u16)) as usize];
         self.adc69(operand);
     }
 
@@ -189,7 +192,7 @@ impl CPU {
 
     /// AND $44,X
     fn and35(&mut self, operand: u8) {
-        let operand = self.ram[(operand + self.x) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.x)) as usize];
         self.and29(operand);
     }
 
@@ -201,29 +204,27 @@ impl CPU {
 
     /// AND $4400,X
     fn and3d(&mut self, operand: u16) {
-        let operand = self.ram[(operand + self.x as u16) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.x as u16)) as usize];
         self.and29(operand);
     }
 
     /// AND $4400,Y
     fn and39(&mut self, operand: u16) {
-        let operand = self.ram[(operand + self.y as u16) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.y as u16)) as usize];
         self.and29(operand);
     }
 
     /// AND ($44,X)
     fn and21(&mut self, operand: u8) {
-        let addr: u16 = self.ram[(operand + self.x) as usize] as u16
-            | (self.ram[(operand + self.x + 1) as usize] as u16) << 8;
+        let addr = self.get_indirect_addr(operand.wrapping_add(self.x));
         let operand = self.ram[addr as usize];
         self.and29(operand);
     }
 
     /// AND ($44),Y
     fn and31(&mut self, operand: u8) {
-        let operand = operand as usize;
-        let addr: u16 = self.ram[operand] as u16 | (self.ram[operand + 1] as u16) << 8;
-        let operand = self.ram[(addr + self.y as u16) as usize];
+        let addr = self.get_indirect_addr(operand);
+        let operand = self.ram[(addr.wrapping_add(self.y as u16)) as usize];
         self.and29(operand);
     }
 
@@ -255,32 +256,32 @@ impl CPU {
 
     /// ASL $44,X
     fn asl16(&mut self, operand: u8) {
-        self.asl06(operand + self.x);
+        self.asl06(operand.wrapping_add(self.x));
     }
 
     /// ASL $4400, X
     fn asl1e(&mut self, operand: u16) {
-        self.asl0e(operand + self.x as u16);
+        self.asl0e(operand.wrapping_add(self.x as u16));
     }
 
     /// BCC $44
     fn bcc90(&mut self, operand: u8) {
         if self.carry == 0 {
-            self.pc += operand as u16;
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
     /// BCS $44
     fn bcsb0(&mut self, operand: u8) {
         if self.carry == 1 {
-            self.pc += operand as u16;
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
     /// BEQ $44
     fn beqf0(&mut self, operand: u8) {
         if self.zero {
-            self.pc += operand as u16;
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
@@ -306,21 +307,21 @@ impl CPU {
     /// BMI $44
     fn bmi30(&mut self, operand: u8) {
         if self.negative {
-            self.pc += operand as u16;
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
     /// BNE $44
     fn bned0(&mut self, operand: u8) {
         if !self.zero {
-            self.pc += operand as u16;
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
     /// BPL $44
     fn bpl10(&mut self, operand: u8) {
         if !self.negative {
-            self.pc += operand as u16
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
@@ -342,14 +343,14 @@ impl CPU {
     /// BVC $44
     fn bvc50(&mut self, operand: u8) {
         if !self.overflow {
-            self.pc += operand as u16;
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
     /// BVS $44
     fn bvs70(&mut self, operand: u8) {
         if self.overflow {
-            self.pc += operand as u16;
+            self.pc = self.pc.wrapping_add(operand as u16);
         }
     }
 
@@ -399,7 +400,7 @@ impl CPU {
 
     /// CMP $44,X
     fn cmpd5(&mut self, operand: u8) {
-        let operand = self.ram[(operand + self.x) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.x)) as usize];
         self.cmpc9(operand);
     }
 
@@ -410,28 +411,26 @@ impl CPU {
 
     /// CMP $4400,X
     fn cmpdd(&mut self, operand: u16) {
-        let operand = self.ram[(operand + self.x as u16) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.x as u16)) as usize];
         self.cmpc9(operand);
     }
 
     /// CMP $4400,Y
     fn cmpd9(&mut self, operand: u16) {
-        let operand = self.ram[(operand + self.y as u16) as usize];
+        let operand = self.ram[(operand.wrapping_add(self.y as u16)) as usize];
         self.cmpc9(operand);
     }
 
     /// CMP ($44,X)
     fn cmpc1(&mut self, operand: u8) {
-        let operand = (operand + self.x) as usize;
-        let operand: u16 = self.ram[operand] as u16 | ((self.ram[operand + 1] as u16) << 8);
+        let operand = self.get_indirect_addr(operand.wrapping_add(self.x));
         self.cmp_helper(operand);
     }
 
     /// CMP ($44),Y
     fn cmpd1(&mut self, operand: u8) {
-        let operand = operand as usize;
-        let operand: u16 = self.ram[operand] as u16 | ((self.ram[operand + 1] as u16) << 8);
-        self.cmp_helper(operand + self.y as u16);
+        let operand = self.get_indirect_addr(operand);
+        self.cmp_helper(operand.wrapping_add(self.y as u16));
     }
 
     /// CPX #$44
@@ -486,7 +485,7 @@ impl CPU {
 
     /// DEC $44,X
     fn decd6(&mut self, operand: u8) {
-        self.decc6(operand + self.x);
+        self.decc6(operand.wrapping_add(self.x));
     }
 
     /// DEC $4400
@@ -505,7 +504,7 @@ impl CPU {
 
     /// DEC $4400,X
     fn decde(&mut self, operand: u16) {
-        self.decce(operand + self.x as u16);
+        self.decce(operand.wrapping_add(self.x as u16));
     }
 
     /// DEX
@@ -520,6 +519,99 @@ impl CPU {
         self.y -= 1;
         self.zero = self.y == 0;
         self.negative = (self.y & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// EOR #$44
+    fn eor49(&mut self, operand: u8) {
+        self.a ^= operand;
+        self.zero = self.a == 0;
+        self.negative = (0b1000_0000 & self.a) == 0b1000_0000;
+    }
+
+    /// EOR $44
+    fn eor45(&mut self, operand: u8) {
+        self.eor49(self.ram[operand as usize]);
+    }
+
+    /// EOR $44,X
+    fn eor55(&mut self, operand: u8) {
+        self.eor49(self.ram[(operand.wrapping_add(self.x)) as usize]);
+    }
+
+    /// EOR $4400
+    fn eor4d(&mut self, operand: u16) {
+        self.eor49(self.ram[operand as usize]);
+    }
+
+    /// EOR $4400,X
+    fn eor5d(&mut self, operand: u16) {
+        self.eor49(self.ram[(operand.wrapping_add(self.x as u16)) as usize]);
+    }
+
+    /// EOR $4400,Y
+    fn eor59(&mut self, operand: u16) {
+        self.eor49(self.ram[(operand.wrapping_add(self.y as u16)) as usize]);
+    }
+
+    /// EOR ($44,X)
+    fn eor41(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand.wrapping_add(self.x));
+        self.eor49(self.ram[addr as usize]);
+    }
+
+    /// EOR ($44),Y
+    fn eor51(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand);
+        self.eor49(self.ram[(addr.wrapping_add(self.y as u16)) as usize]);
+    }
+
+    /// INC $4400
+    fn incee(&mut self, operand: u16) {
+        self.ram[operand as usize] = self.ram[operand as usize].wrapping_add(1);
+        let res = self.ram[operand as usize];
+        self.zero = res == 0;
+        self.negative = (0b1000_0000 & res) == 0b1000_0000;
+    }
+
+    /// INC $44
+    fn ince6(&mut self, operand: u8) {
+        self.incee(operand as u16);
+    }
+
+    /// INC $44,X
+    fn incf6(&mut self, operand: u8) {
+        self.ince6(operand.wrapping_add(self.x));
+    }
+
+    /// INC $4400,X
+    fn incfe(&mut self, operand: u16) {
+        self.incee(operand.wrapping_add(self.x as u16));
+    }
+
+    /// INX
+    fn inxe8(&mut self) {
+        self.x = self.x.wrapping_add(1);
+        self.zero = self.x == 0;
+        self.negative = (0b1000_0000 & self.x) == 0b1000_0000;
+    }
+
+    /// INY
+    fn inyc8(&mut self) {
+        self.y = self.y.wrapping_add(1);
+        self.zero = self.y == 0;
+        self.negative = (0b1000_0000 & self.y) == 0b1000_0000;
+    }
+
+    /// JMP $5597
+    fn jmp4c(&mut self, operand: u16) {
+        self.pc = operand;
+    }
+
+    /// JMP ($5597)
+    fn jmp6c(&mut self, operand: u16) {
+        let addr1: u16 = (self.ram[(operand.wrapping_add(1)) as usize] as u16) << 8;
+        let addr2: u16 = self.ram[operand as usize] as u16;
+        self.pc = addr1 | addr2;
     }
 }
 
@@ -907,5 +999,58 @@ mod tests {
         cpu.y = 2;
         cpu.dey88();
         assert!(cpu.y == 1);
+    }
+
+    #[test]
+    fn eor_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.a = 100;
+        cpu.eor49(50);
+        println!("{:b}", cpu.ram[512]);
+        assert!(cpu.a == 86);
+
+        cpu.a = 100;
+        cpu.ram[200] = 50;
+        cpu.eor45(200);
+        assert!(cpu.a == 86);
+
+        cpu.a = 100;
+        cpu.x = 2;
+        cpu.ram[52] = 100;
+        cpu.eor55(50);
+        assert!(cpu.zero == true);
+    }
+
+    #[test]
+    fn inc_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.ram[122] = 10;
+        cpu.ince6(122);
+        assert!(cpu.ram[122] == 11);
+
+        cpu.ram[122] = 255;
+        cpu.ince6(122);
+        assert!(cpu.ram[122] == 0);
+
+        cpu.x = 20;
+        cpu.inxe8();
+        assert!(cpu.x == 21);
+
+        cpu.y = 20;
+        cpu.inyc8();
+        assert!(cpu.y == 21);
+    }
+
+    #[test]
+    fn jmp_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.jmp4c(670);
+        assert!(cpu.pc == 670);
+
+        cpu.ram[700] = 0xff;
+        cpu.ram[701] = 0x0a;
+        cpu.jmp6c(700);
+        assert!(cpu.pc == 0x0aff);
     }
 }
