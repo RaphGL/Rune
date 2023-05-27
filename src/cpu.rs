@@ -631,6 +631,106 @@ impl CPU {
         self.push_to_stack(lsb as u8);
         self.pc = operand;
     }
+
+    /// LDA #$44
+    fn ldaa9(&mut self, operand: u8) {
+        self.a = operand;
+        self.zero = operand == 0;
+        self.negative = (0b1000_0000 & operand) == 0b1000_0000;
+    }
+
+    /// LDA $44
+    fn ldaa5(&mut self, operand: u8) {
+        self.ldaa9(self.ram[operand as usize]);
+    }
+
+    /// LDA $44,X
+    fn ldab5(&mut self, operand: u8) {
+        self.ldaa9(self.ram[(operand.wrapping_add(self.x)) as usize]);
+    }
+
+    /// LDA $4400
+    fn ldaad(&mut self, operand: u16) {
+        self.ldaa9(self.ram[operand as usize]);
+    }
+
+    /// LDA $4400,X
+    fn ldabd(&mut self, operand: u16) {
+        self.ldaa9(self.ram[operand.wrapping_add(self.x as u16) as usize]);
+    }
+
+    /// LDA $4400,Y
+    fn ldab9(&mut self, operand: u16) {
+        self.ldaa9(self.ram[operand.wrapping_add(self.y as u16) as usize]);
+    }
+
+    /// LDA ($44,X)
+    fn ldaa1(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand.wrapping_add(self.x));
+        self.ldaa9(self.ram[addr as usize]);
+    }
+
+    /// LDA ($44),Y
+    fn ldab1(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand).wrapping_add(self.y as u16);
+        self.ldaa9(self.ram[addr as usize]);
+    }
+
+    /// LDX #$44
+    fn ldxa2(&mut self, operand: u8) {
+        self.x = operand;
+
+        self.zero = operand == 0;
+        self.negative = (0b1000_0000 & operand) == 0b1000_0000;
+    }
+
+    /// LDX $44
+    fn ldxa6(&mut self, operand: u8) {
+        self.ldxa2(self.ram[operand as usize]);
+    }
+
+    /// LDX $44,Y
+    fn ldxb6(&mut self, operand: u8) {
+        self.ldxa2(self.ram[(operand.wrapping_add(self.y)) as usize]);
+    }
+
+    /// LDX $4400
+    fn ldxae(&mut self, operand: u16) {
+        self.ldxa2(self.ram[operand as usize]);
+    }
+
+    /// LDX $4400,Y
+    fn ldxbe(&mut self, operand: u16) {
+        self.ldxa2(self.ram[operand.wrapping_add(self.y as u16) as usize]);
+    }
+
+    /// LDY #$44
+    fn ldya0(&mut self, operand: u8) {
+        self.y = operand;
+
+        self.zero = operand == 0;
+        self.negative = (0b1000_0000 & operand) == 0b1000_0000;
+    }
+
+    /// LDY $44
+    fn ldya4(&mut self, operand: u8) {
+        self.ldya0(self.ram[operand as usize]);
+    }
+
+    /// LDY $44,X
+    fn ldyb4(&mut self, operand: u8) {
+        self.ldya0(self.ram[(operand.wrapping_add(self.x)) as usize]);
+    }
+
+    /// LDY $4400
+    fn ldyac(&mut self, operand: u16) {
+        self.ldya0(self.ram[operand as usize]);
+    }
+
+    /// LDY $4400,X
+    fn ldybc(&mut self, operand: u16) {
+        self.ldya0(self.ram[operand.wrapping_add(self.x as u16) as usize]);
+    }
 }
 
 #[cfg(test)]
@@ -1080,5 +1180,99 @@ mod tests {
 
         cpu.jsr20(2300);
         assert!(cpu.pc == 2300);
+    }
+
+    #[test]
+    fn lda_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.ldaa9(0xff);
+        assert!(cpu.a == 0xff);
+
+        cpu.ram[0xff] = 0xfe;
+        cpu.ldaa5(0xff);
+        assert!(cpu.a == 0xfe);
+
+        cpu.x = 2;
+        cpu.ram[3] = 59;
+        cpu.ldab5(1);
+        assert!(cpu.a == 59);
+
+        cpu.ram[2000] = 55;
+        cpu.ldaad(2000);
+        assert!(cpu.a == 55);
+
+        cpu.x = 1;
+        cpu.ram[2001] = 222;
+        cpu.ldabd(2000);
+        assert!(cpu.a == 222);
+
+        cpu.y = 1;
+        cpu.ram[2001] = 223;
+        cpu.ldab9(2000);
+        assert!(cpu.a == 223);
+
+        cpu.ram[142] = 0xbb;
+        cpu.ram[143] = 0x01;
+        cpu.ram[0x01bb] = 0xee;
+        cpu.x = 2;
+        cpu.ldaa1(140);
+        assert!(cpu.a == 0xee);
+
+        cpu.ram[142] = 0xb3;
+        cpu.ram[143] = 0x01;
+        cpu.ram[0x01b5] = 0xaa;
+        cpu.y = 2;
+        cpu.ldab1(142);
+        assert!(cpu.a == 0xaa);
+    }
+
+    #[test]
+    fn ldx_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.ldxa2(0xff);
+        assert!(cpu.x == 0xff);
+
+        cpu.ram[0xff] = 0xfe;
+        cpu.ldxa6(0xff);
+        assert!(cpu.x == 0xfe);
+
+        cpu.y = 2;
+        cpu.ram[3] = 59;
+        cpu.ldxb6(1);
+        assert!(cpu.x == 59);
+
+        cpu.ram[2000] = 55;
+        cpu.ldxae(2000);
+        assert!(cpu.x == 55);
+
+        cpu.y = 1;
+        cpu.ram[2001] = 222;
+        cpu.ldxbe(2000);
+        assert!(cpu.x == 222);
+    }
+
+    #[test]
+    fn ldy_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.ldya0(0xff);
+        assert!(cpu.y == 0xff);
+
+        cpu.ram[0xff] = 0xfe;
+        cpu.ldya4(0xff);
+        assert!(cpu.y == 0xfe);
+
+        cpu.x = 2;
+        cpu.ram[3] = 59;
+        cpu.ldyb4(1);
+        assert!(cpu.y == 59);
+
+        cpu.ram[2000] = 55;
+        cpu.ldyac(2000);
+        assert!(cpu.y == 55);
+
+        cpu.x = 1;
+        cpu.ram[2001] = 222;
+        cpu.ldybc(2000);
+        assert!(cpu.y == 222);
     }
 }
