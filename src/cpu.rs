@@ -104,14 +104,13 @@ impl CPU {
     }
 
     fn push_to_stack(&mut self, val: u8) {
-        self.ram[self.sp as usize] = val;
+        self.ram[mmap::ram::stack::START + self.sp as usize] = val;
         self.sp -= 1;
     }
 
     fn pop_from_stack(&mut self) -> u8 {
-        let addr = self.sp;
-        self.sp = self.sp.wrapping_add(1);
-        self.ram[addr as usize]
+        self.sp += 1;
+        self.ram[mmap::ram::stack::START + self.sp as usize]
     }
 
     // --- INSTRUCTIONS ---
@@ -731,6 +730,104 @@ impl CPU {
     fn ldybc(&mut self, operand: u16) {
         self.ldya0(self.ram[operand.wrapping_add(self.x as u16) as usize]);
     }
+
+    /// LSR A
+    fn lsr4a(&mut self) {
+        self.carry = self.a & 0b0000_0001;
+        self.a = (self.a & 0b0111_1111) >> 1;
+        self.zero = self.a == 0;
+        self.negative = false;
+    }
+
+    /// LSR $4400
+    fn lsr4e(&mut self, operand: u16) {
+        let operand = operand as usize;
+        self.carry = self.ram[operand] & 0b0000_0001;
+        self.ram[operand] = (self.ram[operand] & 0b0111_1111) >> 1;
+        self.zero = self.ram[operand] == 0;
+        self.negative = false;
+    }
+
+    /// LSR $44
+    fn lsr46(&mut self, operand: u8) {
+        self.lsr4e(operand as u16);
+    }
+
+    /// LSR $44,X
+    fn lsr56(&mut self, operand: u8) {
+        self.lsr46(operand + self.x);
+    }
+
+    /// LSR $4400,X
+    fn lsr5e(&mut self, operand: u16) {
+        self.lsr4e(operand + self.x as u16);
+    }
+
+    /// ORA #$44
+    fn ora09(&mut self, operand: u8) {
+        self.a |= operand;
+        self.zero = self.a == 0;
+        self.negative = (operand & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// ORA $44
+    fn ora05(&mut self, operand: u8) {
+        self.ora09(self.ram[operand as usize]);
+    }
+
+    /// ORA $44,X
+    fn ora15(&mut self, operand: u8) {
+        self.ora09(self.ram[(operand + self.x) as usize]);
+    }
+
+    /// ORA $4400
+    fn ora0d(&mut self, operand: u16) {
+        self.ora09(self.ram[operand as usize]);
+    }
+
+    /// ORA $4400,X
+    fn ora1d(&mut self, operand: u16) {
+        self.ora09(self.ram[(operand + self.x as u16) as usize]);
+    }
+
+    /// ORA $4400,Y
+    fn ora19(&mut self, operand: u16) {
+        self.ora09(self.ram[(operand + self.y as u16) as usize]);
+    }
+
+    /// ORA ($44,X)
+    fn ora01(&mut self, operand: u8) {
+        let operand = self.get_indirect_addr(operand + self.x);
+        self.ora09(self.ram[operand as usize]);
+    }
+
+    /// ORA ($44),Y
+    fn ora11(&mut self, operand: u8) {
+        let operand = self.get_indirect_addr(operand) + self.y as u16;
+        self.ora09(self.ram[operand as usize]);
+    }
+
+    /// PHA
+    fn pha48(&mut self) {
+        self.push_to_stack(self.a);
+    }
+
+    /// PHP
+    fn php08(&mut self) {
+        self.push_to_stack(self.get_status());
+    }
+
+    /// PLA
+    fn pla68(&mut self) {
+        self.a = self.pop_from_stack();
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// PLP
+    fn plp28(&mut self) {
+        let status = self.pop_from_stack();
+        self.set_status(status);
+    }
 }
 
 #[cfg(test)]
@@ -1274,5 +1371,82 @@ mod tests {
         cpu.ram[2001] = 222;
         cpu.ldybc(2000);
         assert!(cpu.y == 222);
+    }
+
+    #[test]
+    fn lsr_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 0b0101_0101;
+        cpu.lsr4a();
+        assert!(cpu.a == 0b0010_1010);
+
+        cpu.ram[100] = 0b0101_0101;
+        cpu.lsr4e(100);
+        assert!(cpu.ram[100] == 0b0010_1010);
+    }
+
+    #[test]
+    fn ora_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 0b1010_1010;
+        cpu.ora09(0b0101_0101);
+        assert!(cpu.a == 0xff);
+
+        cpu.a = 0b1010_1010;
+        cpu.ram[1600] = 0b0101_0101;
+        cpu.ora0d(1600);
+        assert!(cpu.a == 0xff);
+
+        cpu.x = 2;
+        cpu.ram[0xaa] = 0x10;
+        cpu.ram[0xab] = 0x02;
+        cpu.ram[0x0210] = 0b0101_0101;
+        cpu.ora01(98);
+        assert!(cpu.a == 0xff);
+
+        cpu.x = 2;
+        cpu.ram[0xaa] = 0x10;
+        cpu.ram[0xab] = 0x02;
+        cpu.ram[0x0212] = 0b0101_0101;
+        cpu.ora11(100);
+        assert!(cpu.a == 0xff);
+    }
+
+    #[test]
+    fn pha_pla_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 43;
+        cpu.pha48();
+        cpu.a = 23;
+        cpu.pla68();
+        assert!(cpu.a == 43);
+    }
+
+    #[test]
+    fn php_plp_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.carry = 1;
+        cpu.negative = false;
+        cpu.overflow = true;
+        cpu.decimal = false;
+        cpu.interrupt_disable = true;
+        cpu.zero = false;
+        cpu.b = true;
+        let status = cpu.get_status();
+        cpu.php08();
+
+        cpu.carry = 0;
+        cpu.negative = true;
+        cpu.overflow = false;
+        cpu.decimal = true;
+        cpu.interrupt_disable = true;
+        cpu.zero = true;
+        cpu.b = false;
+        cpu.plp28();
+        assert!(cpu.get_status() == status);
     }
 }
