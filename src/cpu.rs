@@ -828,6 +828,78 @@ impl CPU {
         let status = self.pop_from_stack();
         self.set_status(status);
     }
+
+    /// ROL A
+    fn rol2a(&mut self) {
+        let old = self.a;
+        self.a = (self.a << 1) | self.carry;
+
+        self.carry = old >> 7;
+        self.zero = self.a == 0;
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// ROL $4400
+    fn rol2e(&mut self, operand: u16) {
+        let operand = operand as usize;
+        let old = self.ram[operand];
+        self.ram[operand] = (self.ram[operand] << 1) | self.carry;
+
+        self.carry = old >> 7;
+        self.zero = self.ram[operand] == 0;
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// ROL $44
+    fn rol26(&mut self, operand: u8) {
+        self.rol2e(operand as u16);
+    }
+
+    /// ROL $44,X
+    fn rol36(&mut self, operand: u8) {
+        self.rol26(operand + self.x);
+    }
+
+    /// ROL $4400,X
+    fn rol3e(&mut self, operand: u16) {
+        self.rol2e(operand + self.x as u16);
+    }
+
+    /// ROR A
+    fn ror6a(&mut self) {
+        let old = self.a;
+        self.a = (self.a >> 1) | self.carry;
+
+        self.carry = old >> 7;
+        self.zero = self.a == 0;
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// ROR $4400
+    fn ror6e(&mut self, operand: u16) {
+        let operand = operand as usize;
+        let old = self.ram[operand];
+        self.ram[operand] = (self.ram[operand] >> 1) | self.carry;
+
+        self.carry = old >> 7;
+        self.zero = self.ram[operand] == 0;
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// ROR $44
+    fn ror66(&mut self, operand: u8) {
+        self.ror6e(operand as u16);
+    }
+
+    /// ROR $44,X
+    fn ror76(&mut self, operand: u8) {
+        self.ror66(operand + self.x);
+    }
+
+    /// ROR $4400,X
+    fn ror7e(&mut self, operand: u16) {
+        self.ror6e(operand + self.x as u16);
+    }
 }
 
 #[cfg(test)]
@@ -1098,7 +1170,6 @@ mod tests {
     #[test]
     fn cmp_opcodes() {
         let mut cpu = CPU::default();
-        // TODO
         cpu.a = 0xfe;
         cpu.cmpc9(0xfe);
         assert!(cpu.zero == true);
@@ -1448,5 +1519,47 @@ mod tests {
         cpu.b = false;
         cpu.plp28();
         assert!(cpu.get_status() == status);
+    }
+
+    #[test]
+    fn rol_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 0b0111_0101;
+        cpu.carry = 1;
+        cpu.rol2a();
+        assert!(cpu.a == 0b1110_1011);
+
+        cpu.ram[1200] = 0b0111_0101;
+        cpu.carry = 1;
+        cpu.rol2e(1200);
+        assert!(cpu.ram[1200] == 0b1110_1011);
+
+        cpu.ram[1202] = 0b0111_0101;
+        cpu.carry = 1;
+        cpu.x = 2;
+        cpu.rol3e(1200);
+        assert!(cpu.ram[1202] == 0b1110_1011);
+    }
+
+    #[test]
+    fn ror_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 0b0111_0101;
+        cpu.carry = 1;
+        cpu.ror6a();
+        assert!(cpu.a == 0b0011_1011);
+
+        cpu.ram[1200] = 0b0111_0101;
+        cpu.carry = 1;
+        cpu.ror6e(1200);
+        assert!(cpu.ram[1200] == 0b0011_1011);
+
+        cpu.ram[1202] = 0b0111_0101;
+        cpu.carry = 1;
+        cpu.x = 2;
+        cpu.ror7e(1200);
+        assert!(cpu.ram[1202] == 0b0011_1011);
     }
 }
