@@ -4,6 +4,7 @@ enum TVSystem {
     DUAL,
 }
 
+/// The first 16 bytes of a INES file
 #[repr(C)]
 #[derive(Debug)]
 pub struct InesHeader {
@@ -95,7 +96,7 @@ impl InesHeader {
         self.flags7 & 0b0000_1100 == 0b1000
     }
 
-    fn get_higher_mapper_nibble(&self) -> u8 {
+    fn get_upper_mapper_nibble(&self) -> u8 {
         self.flags7 & 0b1111_0000
     }
 
@@ -140,7 +141,8 @@ pub struct InesFile {
 }
 
 impl InesFile {
-    pub fn new(filename: &str) -> InesFile {
+    /// returns an InesFile loaded with contents of file
+    pub fn open(filename: &str) -> InesFile {
         let file = std::fs::read(filename).unwrap();
         let header = InesHeader::parse(&file[0..16]).unwrap();
 
@@ -181,5 +183,119 @@ impl InesFile {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
+    #[test]
+    fn rejects_non_nes_files() {
+        let mut header = [0u8; 16];
+        assert!(InesHeader::parse(&header).is_err());
+
+        header[0] = 0x4e;
+        header[1] = 0x45;
+        header[2] = 0x53;
+        header[3] = 0x1a;
+        assert!(InesHeader::parse(&header).is_ok());
+    }
+
+    #[test]
+    fn flags6() {
+        let mut header: InesHeader = unsafe { std::mem::zeroed() };
+        header.flags6 = 1;
+        assert!(header.has_vertical_arrangement());
+        header.flags6 = 0;
+        assert!(header.has_horizontal_arrangement());
+
+        header.flags6 = 0b0000_0010;
+        assert!(header.has_persistent_memory());
+        header.flags6 = 0;
+        assert!(!header.has_persistent_memory());
+
+        header.flags6 = 0b0000_0100;
+        assert!(header.has_trainer());
+        header.flags6 = 0;
+        assert!(!header.has_trainer());
+
+        header.flags6 = 0b0000_1000;
+        assert!(header.ignores_mirroring_ctl());
+        header.flags6 = 0;
+        assert!(!header.ignores_mirroring_ctl());
+
+        header.flags6 = 0b1111_0000;
+        assert!(header.get_lower_mapper_nibble() == 0b1111);
+        header.flags6 = 0;
+        assert!(header.get_lower_mapper_nibble() == 0);
+    }
+
+    #[test]
+    fn flags7() {
+        let mut header: InesHeader = unsafe { std::mem::zeroed() };
+        header.flags7 = 1;
+        assert!(header.is_vs_unisystem());
+        header.flags7 = 0;
+        assert!(!header.is_vs_unisystem());
+
+        header.flags7 = 0b0000_0010;
+        assert!(header.is_playchoice10());
+        header.flags7 = 0;
+        assert!(!header.is_playchoice10());
+
+        header.flags7 = 0b0000_1000;
+        assert!(header.is_nes20());
+        header.flags7 = 0;
+        assert!(!header.is_nes20());
+
+        header.flags7 = 0b1111_0000;
+        assert!(header.get_upper_mapper_nibble() == 0b1111_0000);
+        header.flags7 = 0;
+        assert!(header.get_upper_mapper_nibble() == 0);
+    }
+
+    #[test]
+    fn flags8() {
+        let mut header: InesHeader = unsafe { std::mem::zeroed() };
+        header.flags8 = 243;
+        assert!(header.get_prg_ram_size() == 243);
+    }
+
+    #[test]
+    fn flags9() {
+        // not used by any ROMs in circulation thus it is ignored
+    }
+
+    #[test]
+    fn flags10() {
+        let mut header: InesHeader = unsafe { std::mem::zeroed() };
+        header.flags10 = 0;
+        assert!(match header.get_tv_system() {
+            TVSystem::NTSC => true,
+            _ => false,
+        });
+
+        header.flags10 = 1;
+        assert!(match header.get_tv_system() {
+            TVSystem::DUAL => true,
+            _ => false,
+        });
+        header.flags10 = 3;
+        assert!(match header.get_tv_system() {
+            TVSystem::DUAL => true,
+            _ => false,
+        });
+
+        header.flags10 = 2;
+        assert!(match header.get_tv_system() {
+            TVSystem::PAL => true,
+            _ => false,
+        });
+
+        header.flags10 = 0b0001_0000;
+        assert!(header.has_prg_ram());
+        header.flags10 = 0;
+        assert!(!header.has_prg_ram());
+
+        header.flags10 = 0b0010_0000;
+        assert!(header.has_board_conflicts());
+        header.flags10 = 0;
+        assert!(!header.has_board_conflicts());
+    }
 }
