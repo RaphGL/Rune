@@ -2,6 +2,7 @@ use crate::mmap;
 use std::mem;
 
 pub struct CPU {
+    /// 0x0 - 0x7ff and mirrors from 0x800 to 0x1fff
     ram: [u8; 2048],
     /// program counter
     pc: u16,
@@ -326,10 +327,10 @@ impl CPU {
 
     /// BRK
     fn brk00(&mut self) {
-        let pc1 = (self.pc & 0x00FF) as u8;
-        let pc2 = ((self.pc & 0xFF00) >> 8) as u8;
-        self.push_to_stack(pc1);
-        self.push_to_stack(pc2);
+        let pc_lsb = (self.pc & 0x00FF) as u8;
+        let pc_msb = ((self.pc & 0xFF00) >> 8) as u8;
+        self.push_to_stack(pc_msb);
+        self.push_to_stack(pc_lsb);
         self.push_to_stack(self.get_status());
 
         let irq: u16 = self.ram[mmap::cpu::irq_brk::START] as u16
@@ -376,11 +377,7 @@ impl CPU {
     fn cmp_helper(&mut self, operand: u16) {
         let acc = self.a as u16;
         let res = acc.wrapping_sub(operand);
-        if acc >= operand {
-            self.carry = 1;
-        } else {
-            self.carry = 0;
-        }
+        self.carry = if acc >= operand { 1 } else { 0 };
 
         self.zero = acc == operand;
         self.negative = (res & 0b1000_0000) == 0b1000_0000;
@@ -900,6 +897,149 @@ impl CPU {
     fn ror7e(&mut self, operand: u16) {
         self.ror6e(operand + self.x as u16);
     }
+
+    /// RTI
+    fn rti40(&mut self) {
+        let status = self.pop_from_stack();
+        let pc: u16 = (self.pop_from_stack() as u16) | ((self.pop_from_stack() as u16) << 8);
+        self.set_status(status);
+        self.pc = pc;
+    }
+
+    /// RTS
+    fn rts60(&mut self) {
+        let pc = self.pop_from_stack() as u16 | ((self.pop_from_stack() as u16) << 8);
+        self.pc = pc;
+    }
+
+    /// SBC #$44
+    fn sbce9(&mut self, operand: u8) {
+        let (acc, overflowed1) = self.a.overflowing_sub(operand);
+        let (acc, overflowed2) = acc.overflowing_sub(!self.carry & 0b0000_0001);
+
+        self.a = acc;
+        self.zero = self.a == 0;
+        self.negative = (acc & 0b1000_0000) == 0b1000_0000;
+        self.overflow = overflowed1 || overflowed2;
+
+        if overflowed1 || overflowed2 {
+            self.carry = 0;
+        }
+    }
+
+    /// SBC $44
+    fn sbce5(&mut self, operand: u8) {
+        self.sbce9(self.ram[operand as usize]);
+    }
+
+    /// SBC $44,X
+    fn sbcf5(&mut self, operand: u8) {
+        self.sbce9(self.ram[(operand + self.x) as usize]);
+    }
+
+    /// SBC $4400
+    fn sbced(&mut self, operand: u16) {
+        self.sbce9(self.ram[operand as usize]);
+    }
+
+    /// SBC $4400,X
+    fn sbcfd(&mut self, operand: u16) {
+        self.sbce9(self.ram[(operand + self.x as u16) as usize]);
+    }
+
+    /// SBC $4400,Y
+    fn sbcf9(&mut self, operand: u16) {
+        self.sbce9(self.ram[(operand + self.y as u16) as usize]);
+    }
+
+    /// SBC ($44,X)
+    fn sbce1(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand + self.x);
+        self.sbce9(self.ram[addr as usize]);
+    }
+
+    /// SBC ($44),Y
+    fn sbcf1(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand);
+        self.sbce9(self.ram[(addr + self.y as u16) as usize]);
+    }
+
+    /// SEC
+    fn sec38(&mut self) {
+        self.carry = 1;
+    }
+
+    /// SEI
+    fn sei78(&mut self) {
+        self.interrupt_disable = true;
+    }
+
+    /// STA $4400
+    fn sta8d(&mut self, operand: u16) {
+        self.ram[operand as usize] = self.a;
+    }
+
+    /// STA $44
+    fn sta85(&mut self, operand: u8) {
+        self.sta8d(operand as u16);
+    }
+
+    /// STA $44,X
+    fn sta95(&mut self, operand: u8) {
+        self.sta85(operand + self.x);
+    }
+
+    /// STA $4400,X
+    fn sta9d(&mut self, operand: u16) {
+        self.sta8d(operand + self.x as u16);
+    }
+
+    /// STA $4400,Y
+    fn sta99(&mut self, operand: u16) {
+        self.sta8d(operand + self.y as u16);
+    }
+
+    /// STA ($44,X)
+    fn sta81(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand + self.x);
+        self.sta8d(addr);
+    }
+
+    /// STA ($44),Y
+    fn sta91(&mut self, operand: u8) {
+        let addr = self.get_indirect_addr(operand);
+        self.sta8d(addr + self.y as u16);
+    }
+
+    /// STX $4400
+    fn stx8e(&mut self, operand: u16) {
+        self.ram[operand as usize] = self.x;
+    }
+
+    /// STX $44
+    fn stx86(&mut self, operand: u8) {
+        self.stx8e(operand as u16);
+    }
+
+    /// STX $44,Y
+    fn stx96(&mut self, operand: u8) {
+        self.stx86(operand + self.y);
+    }
+
+    /// STY $4400
+    fn sty8c(&mut self, operand: u16) {
+        self.ram[operand as usize] = self.y;
+    }
+
+    /// STY $44
+    fn sty84(&mut self, operand: u8) {
+        self.stx8e(operand as u16);
+    }
+
+    /// STY $44,X
+    fn sty94(&mut self, operand: u8) {
+        self.stx86(operand + self.x);
+    }
 }
 
 #[cfg(test)]
@@ -1292,7 +1432,6 @@ mod tests {
         let mut cpu = CPU::default();
         cpu.a = 100;
         cpu.eor49(50);
-        println!("{:b}", cpu.ram[512]);
         assert!(cpu.a == 86);
 
         cpu.a = 100;
@@ -1561,5 +1700,84 @@ mod tests {
         cpu.x = 2;
         cpu.ror7e(1200);
         assert!(cpu.ram[1202] == 0b0011_1011);
+    }
+
+    #[test]
+    fn rti_opcode() {
+        let mut cpu = CPU::default();
+
+        cpu.pc = 545;
+        cpu.jsr20(200);
+        cpu.negative = true;
+        cpu.push_to_stack(cpu.get_status());
+        cpu.negative = false;
+        cpu.pc = 111;
+        cpu.rti40();
+        assert!(cpu.pc == 544);
+        assert!(cpu.negative == true);
+    }
+
+    #[test]
+    fn rts_opcode() {
+        let mut cpu = CPU::default();
+
+        cpu.pc = 200;
+        cpu.jsr20(1000);
+        cpu.rts60();
+        assert!(cpu.pc == 200 - 1);
+    }
+
+    #[test]
+    fn sbc_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.a = 200;
+        cpu.carry = 1;
+        cpu.sbce9(20);
+        assert!(cpu.a == 180);
+
+        cpu.a = 200;
+        cpu.carry = 0;
+        cpu.sbce9(20);
+        assert!(cpu.a == 179);
+    }
+
+    #[test]
+    fn sec_opcode() {
+        let mut cpu = CPU::default();
+        assert!(cpu.carry == 0);
+        cpu.sec38();
+        assert!(cpu.carry == 1);
+    }
+
+    #[test]
+    fn sei_opcode() {
+        let mut cpu = CPU::default();
+        assert!(cpu.interrupt_disable == false);
+        cpu.sei78();
+        assert!(cpu.interrupt_disable == true);
+    }
+
+    #[test]
+    fn sta_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.a = 123;
+        cpu.sta85(100);
+        assert!(cpu.ram[100] == 123);
+    }
+
+    #[test]
+    fn stx_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.x = 145;
+        cpu.stx8e(1233);
+        assert!(cpu.ram[1233] == 145);
+    }
+
+    #[test]
+    fn sty_opcodes() {
+        let mut cpu = CPU::default();
+        cpu.y = 233;
+        cpu.sty8c(2000);
+        assert!(cpu.ram[2000] == 233);
     }
 }
