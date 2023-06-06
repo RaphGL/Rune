@@ -1040,6 +1040,46 @@ impl CPU {
     fn sty94(&mut self, operand: u8) {
         self.stx86(operand + self.x);
     }
+
+    /// TAX
+    fn taxaa(&mut self) {
+        self.x = self.a;
+        self.zero = self.x == 0;
+        self.negative = (self.x & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// TAY
+    fn taya8(&mut self) {
+        self.y = self.a;
+        self.zero = self.y == 0;
+        self.negative = (self.y & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// TSX
+    fn tsxba(&mut self) {
+        self.x = self.sp;
+        self.zero = self.x == 0;
+        self.negative = (self.x & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// TXA
+    fn txa8a(&mut self) {
+        self.a = self.x;
+        self.zero = self.a == 0;
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
+
+    /// TXS
+    fn txs9a(&mut self) {
+        self.sp = self.x;
+    }
+
+    /// TYA
+    fn tya98(&mut self) {
+        self.a = self.y;
+        self.zero = self.a == 0;
+        self.negative = (self.a & 0b1000_0000) == 0b1000_0000;
+    }
 }
 
 #[cfg(test)]
@@ -1779,5 +1819,34 @@ mod tests {
         cpu.y = 233;
         cpu.sty8c(2000);
         assert!(cpu.ram[2000] == 233);
+    }
+
+    #[test]
+    fn txx_opcodes() {
+        let mut cpu = CPU::default();
+
+        cpu.a = 50;
+        cpu.taxaa();
+        assert!(cpu.x == cpu.a);
+
+        cpu.a = 90;
+        cpu.taya8();
+        assert!(cpu.y == cpu.a);
+
+        cpu.sp = 200;
+        cpu.tsxba();
+        assert!(cpu.x == cpu.sp);
+
+        cpu.x = 155;
+        cpu.txa8a();
+        assert!(cpu.x == cpu.a);
+
+        cpu.x = 111;
+        cpu.txs9a();
+        assert!(cpu.x == cpu.sp);
+
+        cpu.y = 222;
+        cpu.tya98();
+        assert!(cpu.y == cpu.a);
     }
 }
