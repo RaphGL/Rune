@@ -28,7 +28,7 @@ pub struct CPU {
 
 impl Default for CPU {
     fn default() -> Self {
-        CPU {
+        let mut cpu = CPU {
             ram: [0; 2048],
             pc: 0,
             sp: 0xff,
@@ -42,7 +42,10 @@ impl Default for CPU {
             zero: false,
             carry: 0,
             b: false,
-        }
+        };
+
+        cpu.set_status(0x34);
+        cpu
     }
 }
 
@@ -91,7 +94,7 @@ impl CPU {
     fn set_status(&mut self, status_byte: u8) {
         self.negative = status_byte & 0b1000_0000 == 0b1000_0000;
         self.overflow = status_byte & 0b0100_0000 == 0b0100_0000;
-        self.b = status_byte & 0b0011_0000 == 0b0011_0000;
+        self.b = status_byte & 0b0001_0000 == 0b0001_0000;
         self.decimal = status_byte & 0b0000_1000 == 0b0000_1000;
         self.interrupt_disable = status_byte & 0b0000_0100 == 0b0000_0100;
         self.zero = status_byte & 0b0000_0010 == 0b0000_0010;
@@ -1792,7 +1795,7 @@ mod tests {
     #[test]
     fn sei_opcode() {
         let mut cpu = CPU::default();
-        assert!(cpu.interrupt_disable == false);
+        cpu.interrupt_disable = false;
         cpu.sei78();
         assert!(cpu.interrupt_disable == true);
     }
