@@ -30,7 +30,7 @@ pub struct InesHeader {
 }
 
 impl InesHeader {
-    fn parse(header: &[u8]) -> Result<InesHeader, InesHeader> {
+    pub fn parse(header: &[u8]) -> Result<InesHeader, InesHeader> {
         let header = InesHeader {
             constant: header[0..=3]
                 .try_into()
@@ -59,23 +59,23 @@ impl InesHeader {
     }
 
     // flags 6
-    fn has_vertical_arrangement(&self) -> bool {
+    pub fn has_vertical_arrangement(&self) -> bool {
         self.flags6 & 0b0000_0001 == 1
     }
 
-    fn has_horizontal_arrangement(&self) -> bool {
+    pub fn has_horizontal_arrangement(&self) -> bool {
         self.flags6 & 0b0000_0001 == 0
     }
 
-    fn has_persistent_memory(&self) -> bool {
+    pub fn has_persistent_memory(&self) -> bool {
         self.flags6 & 0b0000_0010 == 0b10
     }
 
-    fn has_trainer(&self) -> bool {
+    pub fn has_trainer(&self) -> bool {
         self.flags6 & 0b0000_0100 == 0b100
     }
 
-    fn ignores_mirroring_ctl(&self) -> bool {
+    pub fn ignores_mirroring_ctl(&self) -> bool {
         self.flags6 & 0b0000_1000 == 0b1000
     }
 
@@ -84,15 +84,15 @@ impl InesHeader {
     }
 
     // flags 7
-    fn is_vs_unisystem(&self) -> bool {
+    pub fn is_vs_unisystem(&self) -> bool {
         self.flags7 & 0b0000_0001 == 1
     }
 
-    fn is_playchoice10(&self) -> bool {
+    pub fn is_playchoice10(&self) -> bool {
         self.flags7 & 0b0000_0010 == 0b10
     }
 
-    fn is_nes20(&self) -> bool {
+    pub fn is_nes20(&self) -> bool {
         self.flags7 & 0b0000_1100 == 0b1000
     }
 
@@ -101,7 +101,7 @@ impl InesHeader {
     }
 
     // flags 8
-    fn get_prg_ram_size(&self) -> u8 {
+    pub fn get_prg_ram_size(&self) -> u8 {
         self.flags8
     }
 
@@ -110,7 +110,7 @@ impl InesHeader {
 
     // flags 10
     /// not part of the official spec, so it should not be mandatory
-    fn get_tv_system(&self) -> TVSystem {
+    pub fn get_tv_system(&self) -> TVSystem {
         let system = self.flags10 & 0b0000_0011;
 
         match system {
@@ -121,12 +121,17 @@ impl InesHeader {
         }
     }
 
-    fn has_prg_ram(&self) -> bool {
+    pub fn has_prg_ram(&self) -> bool {
         self.flags10 & 0b0001_0000 == 0b0001_0000
     }
 
-    fn has_board_conflicts(&self) -> bool {
+    pub fn has_board_conflicts(&self) -> bool {
         self.flags10 & 0b0010_0000 == 0b0010_0000
+    }
+
+    /// returns the number of the mapper used by the ROM 
+    pub fn get_mapper(&self) -> u8 {
+        self.get_upper_mapper_nibble() | self.get_lower_mapper_nibble()
     }
 }
 
