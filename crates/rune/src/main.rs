@@ -1,8 +1,8 @@
 mod cpu;
-mod ines;
 mod mmap;
 
 use std::time::Instant;
+use rune_ines as ines;
 
 fn main() {
     let mut cpu = cpu::CPU::default();

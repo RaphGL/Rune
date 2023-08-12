@@ -1,4 +1,4 @@
-enum TVSystem {
+pub enum TVSystem {
     NTSC,
     PAL,
     DUAL,
