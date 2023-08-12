@@ -1,9 +1,11 @@
 use crate::mmap;
 use std::mem;
+use std::time::Instant;
 
-pub struct CPU {
+pub struct CPU<'prg_rom> {
     /// 0x0 - 0x7ff and mirrors from 0x800 to 0x1fff
     ram: [u8; 2048],
+    prg_rom: Option<&'prg_rom Vec<u8>>,
     /// program counter
     pc: u16,
     /// stack pointer
@@ -26,10 +28,11 @@ pub struct CPU {
     b: bool,
 }
 
-impl Default for CPU {
+impl Default for CPU<'_> {
     fn default() -> Self {
         let mut cpu = CPU {
             ram: [0; 2048],
+            prg_rom: None,
             pc: 0,
             sp: 0xff,
             a: 0,
@@ -49,10 +52,222 @@ impl Default for CPU {
     }
 }
 
-impl CPU {
-    pub fn load_rom(filename: &str) {}
+impl CPU<'_> {
+    pub fn load_rom(&mut self, prg_rom: Vec<u8>) {
+        use mmap::cartrige;
+        // loads program
+        let mut j = 0;
+        for i in cartrige::START..cartrige::END {
+            self.ram[i] = prg_rom[j];
+            j += 1;
+        }
 
-    pub fn cycle(&mut self) {}
+        // loads sprites
+    }
+
+    pub fn cycle(&mut self) {
+        const SECS_PER_CYCLE: f32 = 1.0 / 21441960.0;
+        let start = Instant::now();
+        let cycle_time: u8;
+
+        let rom = if let Some(ref rom) = self.prg_rom {
+            rom
+        } else {
+            return;
+        };
+
+        let op_u8 = rom[self.pc as usize + 1];
+        let op_u16;
+
+        match rom[self.pc as usize] {
+            // ADC
+            0x69 => {
+                self.adc69(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0x65 => {
+                self.adc65(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x75 => {
+                self.adc75(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0x6D => {
+                self.adc6d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x7D => {
+                self.adc7d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+                // TODO: impl cross page time
+            }
+            0x79 => {
+                self.adc79(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x61 => {
+                self.adc61(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x71 => {
+                self.adc71(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+
+            // AND
+            0x29 => {
+                self.and29(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0x25 => {
+                self.and25(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x35 => {
+                self.and35(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0x2D => {
+                self.and2d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x3D => {
+                // TODO: page cross
+                self.and3d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x39 => {
+                // TODO: page cross
+                self.and39(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x21 => {
+                self.and21(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x31 => {
+                // TODO: page cross
+                self.and31(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+
+            // ASL
+            0x0a => {
+                self.asl0a();
+                cycle_time = 2;
+            }
+            0x06 => {
+                self.asl06(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+            0x16 => {
+                self.asl16(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x0e => {
+                self.asl0e(op_u16);
+                self.pc += 2;
+                cycle_time = 6;
+            }
+            0x1e => {
+                self.asl1e(op_u16);
+                self.pc += 2;
+                cycle_time = 7;
+            }
+
+            // BCC
+            0x90 => {
+                // TODO: branch and new page timings
+                self.bcc90(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // BCS
+            0xB0 => {
+                // TODO: branch and new page timings
+                self.bcsb0(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // BEQ
+            0xF0 => {
+                // TODO: branch and new page timings
+                self.beqf0(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // BIT
+            0x24 => {
+                self.bit24(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x2C => {
+                self.bit2c(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+
+            // BMI
+            0x30 => {
+                // TODO: branch and new page timings
+                self.bmi30(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // BNE
+            0xD0 => {
+                // TODO: branch and new page timings
+                self.bned0(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // BPL
+            0x10 => {
+                // TODO: branch and new page timings
+                self.bpl10(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // BRK
+            0x00 => {
+                self.brk00();
+                cycle_time = 7;
+            }
+        }
+
+        // synchronizes to clockspeed
+        for _ in 0..cycle_time {
+            while SECS_PER_CYCLE > start.elapsed().as_secs_f32() {}
+            let start = Instant::now();
+        }
+        self.pc += 1;
+    }
 
     /// encodes the status flags into a single byte
     fn get_status(&self) -> u8 {
