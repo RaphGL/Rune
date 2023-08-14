@@ -259,6 +259,362 @@ impl CPU<'_> {
                 self.brk00();
                 cycle_time = 7;
             }
+
+            // BVC
+            0x50 => {
+                // TODO: branch and new page timing
+                self.bvc50(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // BVS
+            0x70 => {
+                // TODO: branch and new page timing
+                self.bvs70(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // CLC
+            0x18 => {
+                self.clc18();
+                cycle_time = 2;
+            }
+
+            // CLD
+            0xD8 => {
+                self.cldd8();
+                cycle_time = 2;
+            }
+
+            // CLI
+            0x58 => {
+                self.cli58();
+                cycle_time = 2;
+            }
+
+            // CLV
+            0xB8 => {
+                self.clvb8();
+                cycle_time = 2;
+            }
+
+            // CMP
+            0xC9 => {
+                self.cmpc9(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0xC5 => {
+                self.cmpc5(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0xD5 => {
+                self.cmpd5(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0xCD => {
+                self.cmpcd(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xDD => {
+                // TODO: page cross timing
+                self.cmpdd(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xD9 => {
+                // TODO: page cross timing
+                self.cmpd9(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xC1 => {
+                self.cmpc1(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0xD1 => {
+                self.cmpd1(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+
+            // CPX
+            0xE0 => {
+                self.cpxe0(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0xE4 => {
+                self.cpxe4(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0xEC => {
+                self.cpxec(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+
+            // CPY
+            0xC0 => {
+                self.cpyc0(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0xC4 => {
+                self.cpyc4(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0xCC => {
+                self.cpycc(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+
+            // DEC
+            0xC6 => {
+                self.decc6(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+            0xD6 => {
+                self.decd6(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0xCE => {
+                self.decce(op_u16);
+                self.pc += 2;
+                cycle_time = 6;
+            }
+            0xDE => {
+                self.decde(op_u16);
+                self.pc += 2;
+                cycle_time = 7;
+            }
+
+            // DEX
+            0xCA => {
+                self.dexca();
+                cycle_time = 2;
+            }
+
+            // DEY
+            0x88 => {
+                self.dey88();
+                cycle_time = 2;
+            }
+
+            // EOR
+            0x49 => {
+                self.eor49(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0x45 => {
+                self.eor45(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x55 => {
+                self.eor55(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0x4D => {
+                self.eor4d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x5D => {
+                // TODO: page cross timing
+                self.eor5d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x59 => {
+                // TODO: page cross timing
+                self.eor59(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x41 => {
+                self.eor41(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x51 => {
+                // TODO: page cross timing
+                self.eor51(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+
+            // INC
+            0xE6 => {
+                self.ince6(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+            0xF6 => {
+                self.incf6(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0xEE => {
+                self.incee(op_u16);
+                self.pc += 2;
+                cycle_time = 6;
+            }
+            0xFE => {
+                self.incfe(op_u16);
+                self.pc += 2;
+                cycle_time = 7;
+            }
+
+            // INX
+            0xE8 => {
+                self.inxe8();
+                cycle_time = 2;
+            }
+
+            // INY
+            0xC8 => {
+                self.inyc8();
+                cycle_time = 2;
+            }
+
+            // JMP
+            0x4C => {
+                self.jmp4c(op_u16);
+                self.pc += 2;
+                cycle_time = 3;
+            }
+            0x6C => {
+                self.jmp6c(op_u16);
+                cycle_time = 5;
+            }
+
+            // JSR
+            0x20 => {
+                self.jsr20(op_u16);
+                self.pc += 2;
+                cycle_time = 6;
+            }
+
+            // LDA
+            0xA9 => {
+                self.ldaa9(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0xA5 => {
+                self.ldaa5(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+
+            }
+            0xB5 => {
+                self.ldab5(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0xAD => {
+                self.ldaad(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+
+            }
+            0xBD => {
+                // TODO: page cross timing
+                self.ldabd(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+
+            }
+            0xB9 => {
+                // TODO: page cross timing
+                self.ldab9(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+
+            }
+            0xA1 => {
+                self.ldaa1(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+
+            }
+            0xB1 => {
+                // TODO: page cross timing
+                self.ldab1(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+
+            }
+            
+            // LDX
+            0xA2 => {
+                self.ldxa2(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0xA6 => {
+                self.ldxa6(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0xB6 => {
+                self.ldxb6(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0xAE => {
+                self.ldxae(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xBE => {
+                // TODO: page cross timing
+                self.ldxbe(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+
+            // LDY
+            0xA0 => {
+                self.ldya0(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0xA4 => {
+                self.ldya4(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0xB4 => {
+                self.ldyb4(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0xAC => {
+                self.ldyac(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xBC => {
+                // TODO: page cross timing
+                self.ldybc(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
         }
 
         // synchronizes to clockspeed
