@@ -58,6 +58,10 @@ impl CPU<'_> {
         // loads program
         let mut j = 0;
         for i in cartrige::START..cartrige::END {
+            if i >= prg_rom.len() {
+                break;
+            }
+
             self.ram[i] = prg_rom[j];
             j += 1;
         }
@@ -67,7 +71,7 @@ impl CPU<'_> {
 
     pub fn cycle(&mut self) {
         const SECS_PER_CYCLE: f32 = 1.0 / 21441960.0;
-        let start = Instant::now();
+        let mut start = Instant::now();
         let cycle_time: u8;
 
         let rom = if let Some(ref rom) = self.prg_rom {
@@ -76,8 +80,9 @@ impl CPU<'_> {
             return;
         };
 
-        let op_u8 = rom[self.pc as usize + 1];
-        let op_u16;
+        let op_u8: u8 = rom[self.pc as usize + 1];
+        let op_u16: u16 = (self.ram[(self.pc.wrapping_add(1)) as usize] as u16) << 8
+            | self.ram[self.pc as usize] as u16;
 
         match rom[self.pc as usize] {
             // ADC
@@ -519,7 +524,6 @@ impl CPU<'_> {
                 self.ldaa5(op_u8);
                 self.pc += 1;
                 cycle_time = 3;
-
             }
             0xB5 => {
                 self.ldab5(op_u8);
@@ -530,36 +534,31 @@ impl CPU<'_> {
                 self.ldaad(op_u16);
                 self.pc += 2;
                 cycle_time = 4;
-
             }
             0xBD => {
                 // TODO: page cross timing
                 self.ldabd(op_u16);
                 self.pc += 2;
                 cycle_time = 4;
-
             }
             0xB9 => {
                 // TODO: page cross timing
                 self.ldab9(op_u16);
                 self.pc += 2;
                 cycle_time = 4;
-
             }
             0xA1 => {
                 self.ldaa1(op_u8);
                 self.pc += 1;
                 cycle_time = 6;
-
             }
             0xB1 => {
                 // TODO: page cross timing
                 self.ldab1(op_u8);
                 self.pc += 1;
                 cycle_time = 5;
-
             }
-            
+
             // LDX
             0xA2 => {
                 self.ldxa2(op_u8);
@@ -615,12 +614,344 @@ impl CPU<'_> {
                 self.pc += 2;
                 cycle_time = 4;
             }
+
+            // LSR
+            0x4A => {
+                self.lsr4a();
+                cycle_time = 2;
+            }
+            0x46 => {
+                self.lsr46(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+            0x56 => {
+                self.lsr56(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x4E => {
+                self.lsr4e(op_u16);
+                self.pc += 2;
+                cycle_time = 6;
+            }
+            0x5E => {
+                self.lsr5e(op_u16);
+                self.pc += 2;
+                cycle_time = 7;
+            }
+
+            // ORA
+            0x09 => {
+                self.ora09(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0x05 => {
+                self.ora05(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x15 => {
+                self.ora15(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0x0D => {
+                self.ora0d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x1D => {
+                // TODO: page cross timing
+                self.ora1d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x19 => {
+                // TODO: page cross timing
+                self.ora19(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x01 => {
+                self.ora01(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x11 => {
+                // TODO: page cross timing
+                self.ora11(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+
+            // PHA
+            0x48 => {
+                self.pha48();
+                cycle_time = 3;
+            }
+
+            // PHP
+            0x08 => {
+                self.php08();
+                cycle_time = 3;
+            }
+
+            // PLA
+            0x68 => {
+                self.pla68();
+                cycle_time = 4;
+            }
+
+            // PLP
+            0x28 => {
+                self.plp28();
+                cycle_time = 4;
+            }
+
+            // ROL
+            0x2A => {
+                self.rol2a();
+                cycle_time = 2;
+            }
+            0x26 => {
+                self.rol26(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+            0x36 => {
+                self.rol36(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x2E => {
+                self.rol2e(op_u16);
+                self.pc += 2;
+                cycle_time = 6;
+            }
+            0x3E => {
+                self.rol3e(op_u16);
+                self.pc += 2;
+                cycle_time = 7;
+            }
+
+            // ROR
+            0x6A => {
+                self.ror6a();
+                cycle_time = 2;
+            }
+            0x66 => {
+                self.ror66(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+            0x76 => {
+                self.ror76(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x6E => {
+                self.ror6e(op_u16);
+                self.pc += 2;
+                cycle_time = 6;
+            }
+            0x7E => {
+                self.ror7e(op_u16);
+                self.pc += 2;
+                cycle_time = 7;
+            }
+
+            // RTI
+            0x40 => {
+                self.rti40();
+                cycle_time = 6;
+            }
+
+            // RTS
+            0x60 => {
+                self.rts60();
+                cycle_time = 6;
+            }
+
+            // SBC
+            0xE9 => {
+                self.sbce9(op_u8);
+                self.pc += 1;
+                cycle_time = 2;
+            }
+            0xE5 => {
+                self.sbce5(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0xF5 => {
+                self.sbcf5(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0xED => {
+                self.sbced(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xFD => {
+                // TODO: page cross timing
+                self.sbcfd(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xF9 => {
+                // TODO: page cross timing
+                self.sbcf9(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0xE1 => {
+                self.sbce1(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0xF1 => {
+                // TODO: page cross timing
+                self.sbcf1(op_u8);
+                self.pc += 1;
+                cycle_time = 5;
+            }
+
+            // SEC
+            0x38 => {
+                self.sec38();
+                cycle_time = 2;
+            }
+
+            // SED
+            0xF8 => unimplemented!(),
+
+            // SEI
+            0x78 => {
+                self.sei78();
+                cycle_time = 2;
+            }
+
+            // STA
+            0x85 => {
+                self.sta85(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x95 => {
+                self.sta95(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0x8D => {
+                self.sta8d(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+            0x9D => {
+                self.sta9d(op_u16);
+                self.pc += 2;
+                cycle_time = 5;
+            }
+            0x99 => {
+                self.sta99(op_u16);
+                self.pc += 2;
+                cycle_time = 5;
+            }
+            0x81 => {
+                self.sta81(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+            0x91 => {
+                self.sta91(op_u8);
+                self.pc += 1;
+                cycle_time = 6;
+            }
+
+            // STX
+            0x86 => {
+                self.stx86(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x96 => {
+                self.stx96(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0x8E => {
+                self.stx8e(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+
+            // STY
+            0x84 => {
+                self.sty84(op_u8);
+                self.pc += 1;
+                cycle_time = 3;
+            }
+            0x94 => {
+                self.sty94(op_u8);
+                self.pc += 1;
+                cycle_time = 4;
+            }
+            0x8C => {
+                self.sty8c(op_u16);
+                self.pc += 2;
+                cycle_time = 4;
+            }
+
+            // TAX
+            0xAA => {
+                self.taxaa();
+                cycle_time = 2;
+            }
+
+            // TAY
+            0xA8 => {
+                self.taya8();
+                cycle_time = 2;
+            }
+
+            // TSX
+            0xBA => {
+                self.tsxba();
+                cycle_time = 2;
+            }
+
+            // TXA
+            0x8A => {
+                self.txa8a();
+                cycle_time = 2;
+            }
+
+            // TXS
+            0x9A => {
+                self.txs9a();
+                cycle_time = 2;
+            }
+
+            // TYA
+            0x98 => {
+                self.tya98();
+                cycle_time = 2;
+            }
+
+            // NOP
+            0xEA | _ => {
+                self.pc += 1;
+                cycle_time = 2;
+            }
         }
 
         // synchronizes to clockspeed
         for _ in 0..cycle_time {
             while SECS_PER_CYCLE > start.elapsed().as_secs_f32() {}
-            let start = Instant::now();
+            start = Instant::now();
         }
         self.pc += 1;
     }
